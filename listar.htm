@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Otomanopee+One&display=swap');
+body {background-color:#151515;font-family: 'Otomanopee One', sans-serif;color:white;background-image: url("hbg6.png");}
+table{border-collapse: separate;border-spacing: 50px 5px}
+.button {
+	background-color: grey;
+	border: none;
+	color: white;
+	padding: 15px 32px;
+	text-align: center;
+	text-decoration: none;
+	font-size: 16px;
+	margin: 4px 2px;
+	cursor: pointer;
+	border-radius: 8px;
+}
+</style>
+<meta charset="UTF-8">
+<title>IndexedDB: Local Database with HTML5</title>
+<script type="text/javascript">
+var indexedDB = window.indexedDB || window.mozIndexedDB || window.webkitIndexedDB || window.msIndexedDB;
+var dataBase = null;
+function startDB() {
+    dataBase = indexedDB.open("object", 1);
+    dataBase.onupgradeneeded = function (e) {
+		var active = dataBase.result;
+		var object = active.createObjectStore("people", {keyPath: 'id', autoIncrement: true});
+		object.createIndex('by_name', 'name', {unique: false});
+		object.createIndex('by_rut', 'dni', {unique: true});
+		};
+		dataBase.onsuccess = function (e) {
+			//    alert('Database loaded');
+			loadAll();
+		};
+		dataBase.onerror = function (e) {
+			alert('Error loading database');
+		};
+}
+function add() {
+	var active = dataBase.result;
+	var data = active.transaction(["people"], "readwrite");
+	var object = data.objectStore("people");
+	var request = object.put({
+		rut: document.querySelector("#rut").value,
+		name: document.querySelector("#name").value,
+		surname: document.querySelector("#surname").value
+	});
+	request.onerror = function (e) {
+		alert(request.error.name + '\n\n' + request.error.message);
+	};
+	data.oncomplete = function (e) {
+		document.querySelector('#rut').value = '';
+		document.querySelector('#name').value = '';
+		document.querySelector('#surname').value = '';
+		alert('Fue añadido Correctamente');
+		loadAll();
+	};
+}
+function load(id) {
+    var active = dataBase.result;
+    var data = active.transaction(["people"], "readonly");
+    var object = data.objectStore("people");
+	var request = object.get(parseInt(id));
+	request.onsuccess = function () {
+        var result = request.result;
+		if (result !== undefined) {
+            alert("ID: " + result.id + "\n\
+            RUT " + result.rut + "\n\
+            Name: " + result.name + "\n\
+            Surname: " + result.surname);
+        }
+    };
+}
+function loadByRut(rut) {
+    var active = dataBase.result;
+    var data = active.transaction(["people"], "readonly");
+    var object = data.objectStore("people");
+    var index = object.index("by_rut");
+    var request = index.get(String(rut));
+	request.onsuccess = function () {
+        var result = request.result;
+		if (result !== undefined) {
+            alert("ID: " + result.id + "\n\
+            RUT " + result.rut + "\n\
+            Name: " + result.name + "\n\
+            Surname: " + result.surname);
+        }
+    };
+}
+function loadAll() {
+    var active = dataBase.result;
+    var data = active.transaction(["people"], "readonly");
+    var object = data.objectStore("people");
+	var elements = [];
+	object.openCursor().onsuccess = function (e) {
+		var result = e.target.result;
+		if (result === null) {
+            return;
+        }
+		elements.push(result.value);
+		result.continue();
+    };
+    data.oncomplete = function () {
+		var outerHTML = '';
+		for (var key in elements) {
+			outerHTML += '\n\
+            <tr>\n\
+                <td>' + elements[key].rut + '</td>\n\
+                <td>' + elements[key].name + '</td>\n\
+                <td><i class="bx bx-trash" onclick="delet()></i></td>\n\
+				<td>\n\
+                <button type="button" onclick="load(' + elements[key].id + ')">Detalles</button>\n\
+				</td>\n\
+            </tr>';
+
+        }
+		elements = [];
+        document.querySelector("#elementsList").innerHTML = outerHTML;
+    };
+}
+function loadAllByName() {
+    var active = dataBase.result;
+    var data = active.transaction(["people"], "readonly");
+    var object = data.objectStore("people");
+    var index = object.index("by_name");
+	var elements = [];
+	index.openCursor().onsuccess = function (e) {
+		var result = e.target.result;
+		if (result === null) {
+			return;
+        }
+		elements.push(result.value);
+        result.continue();
+
+	};
+	data.oncomplete = function () {
+		var outerHTML = '';
+		for (var key in elements) {
+			outerHTML += '\n\
+			<tr>\n\
+				<td>' + elements[key].rut + '</td>\n\
+				<td>' + elements[key].name + '</td>\n\
+				<td><i class="bx bx-trash" onclick="delet()></i></td>\n\
+				<td>\n\
+					<button type="button" onclick="load(' + elements[key].id + ')">Detalles</button>\n\
+				</td>\n\
+			</tr>';
+		}
+		elements = [];
+		document.querySelector("#elementsList").innerHTML = outerHTML;
+    };
+}
+</script>            
+</head>
+<body onload="startDB();">
+    <input type="text" id="rut" name="rut" required oninput="checkRut(this)" placeholder="Ingresa rut" />
+    <input type="text" id="name" placeholder="Ingresa Nombre" />
+    <input type="text" id="surname" placeholder="Ingresa Apellido" />
+    <button class="button" type="button" onclick="add();">Guardar</button>
+    <hr>
+    <div id="elements">
+		<table>
+			<caption>Personas</caption>
+			<thead>
+				<tr>
+					<th>RUT</th>
+					<th>Nombre</th>
+					<th> </th>
+				</tr>
+			</thead>
+			<tbody id="elementsList">
+				<tr>
+					<td colspan="3">Sin elementos para Mostrar</td>
+				</tr>
+			</tbody>
+		</table>
+    </div>
+    <button type="button" class="button" onclick="loadAllByName();">Ordenar por Nombre</button>
+	 
+ <script src="https://unpkg.com/boxicons@latest/dist/boxicons.js"></script>
+	<script src="validarRUT.js"></script>
+</body>
+</html>

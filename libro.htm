@@ -1,0 +1,78 @@
+<!doctype html>
+<head>
+<script src="https://cdn.jsdelivr.net/npm/idb@3.0.2/build/idb.min.js"></script>
+<style>
+ul {
+  list-style-type: "→";
+  color: red;
+  font-weight: bold;
+  display:inline;
+}
+</style>
+</head>
+<body>
+<button onclick="addBook()">A&ntilde;adir un libro</button>
+<button onclick="clearBooks()">Limpiar lista</button>
+
+<p>Lista de Libros:</p>
+
+<ul id="listElem"></ul>
+
+<script>
+let db;
+
+init();
+
+async function init() {
+  db = await idb.openDb('booksDb', 1, db => {
+    db.createObjectStore('books', {keyPath: 'name'});
+  });
+
+  list();
+}
+
+async function list() {
+  let tx = db.transaction('books');
+  let bookStore = tx.objectStore('books');
+
+  let books = await bookStore.getAll();
+
+  if (books.length) {
+    listElem.innerHTML = books.map(book => `<li> Nombre: ${book.name}        -        Valor: ${book.price} </li>`).join('');
+  } else {
+    listElem.innerHTML = '<li>A&uacute;n no hay libros. Agregue libros. </li>'
+  }
+}
+
+async function clearBooks() {
+  let tx = db.transaction('books', 'readwrite');
+  await tx.objectStore('books').clear();
+  await list();
+}
+
+async function addBook() {
+  let name = prompt("Nombre del Libro: ");
+  let price = +prompt("Valor del Libro: ");
+
+  let tx = db.transaction('books', 'readwrite');
+
+  try {
+    await tx.objectStore('books').add({name, price});
+    await list();
+  } catch(err) {
+    if (err.name == 'ConstraintError') {
+      alert("Tal libro ya existe");
+      await addBook();
+    } else {
+      throw err;
+    }
+  }
+}
+
+window.addEventListener('unhandledrejection', event => {
+  alert("Error: " + event.reason.message);
+});
+
+</script>
+</body>
+</html>

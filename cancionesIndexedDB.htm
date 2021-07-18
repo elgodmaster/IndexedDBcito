@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>Ejemplo indexedDB</title>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style type="text/css">
+#aviso {
+	color: red;
+}
+ul {
+  list-style-type: "→";
+  color: red;
+  font-weight: bold;
+  display:inline;
+}
+fieldset{
+	background-color:#CCC;
+	max-width:500px;
+	padding:16px;	
+	border:1px solid grey;
+    -moz-border-radius:8px;
+    -webkit-border-radius:8px;	
+    border-radius:8px;	
+}
+#borrar{
+	background-color: #04AA6D; /* Green background */
+	border: none; /* Remove borders */
+	color: white; /* White text */
+	border-radius: 5px;
+	padding: 12px 16px; /* Some padding */
+	font-size: 16px /* Set a font size */
+}
+#borrar:hover {
+  background-color: #45a049;
+}
+input[type=text] {
+	width: 60%;
+	padding: 10px 20px;
+	margin: 8px 0;
+	display: inline-block;
+	border: 1px solid #ccc;
+	border-radius: 4px;
+	box-sizing: border-box;
+}
+
+</style>
+
+</head>
+<body>
+    <form>
+        <fieldset>
+			<legend>Listado Canciones</legend>
+            <input type="text" id="CancionTextInput" placeholder="¿Canción?">
+            <input type="button" id="BotonAnadir" value="Añadir Canción">
+			<input type="button" id="ordenar" value="Ordenar Listado">
+            <br/>
+            <span id="aviso" hidden>El campo no puede estar vacio</span>
+            <ul id="listaCanciones">
+            </ul>
+				
+        </fieldset>
+        <br/>
+		<button id="borrar">Borrar Datos</button>
+    </form>
+    <script type="text/javascript">//<![CDATA[
+	window.onload = inicio;
+
+function inicio() {
+    inicioBD();
+    //recuperar valores
+    leerBD();
+
+    var boton = document.getElementById("BotonAnadir");
+    boton.addEventListener("click", function () {
+        manejadorClicBoton()
+    }, false);
+
+    var borrar = document.getElementById("borrar");
+    borrar.addEventListener("click", borrado, false);
+
+    var ordenar = document.getElementById("ordenar");
+    ordenar.addEventListener("click", orden, false);
+
+    /* Manejador para que no haga enter en el input */
+    var texto = document.getElementById("CancionTextInput");
+    texto.value = "";
+    texto.addEventListener("keydown", function (event) {
+        console.log("tecla pulsada");
+        if (event.keyCode === 13) {
+            event.preventDefault();
+            manejadorClicBoton();
+        }
+    }, false);
+}
+
+function manejadorClicBoton() {
+    var nuevoli = document.createElement("li");
+    var texto = document.getElementById("CancionTextInput").value;
+    if (texto !== "" && texto !== null) {
+        nuevoli.textContent = texto;
+        addBD(texto);
+        document.getElementById("CancionTextInput").value = "";
+        var ul = document.getElementById("listaCanciones");
+        ul.appendChild(nuevoli);
+        var boton = document.getElementById("aviso");
+        if (!boton.getAttribute("hidden")) {
+            boton.setAttribute("hidden", "");
+        }
+    } else if (texto === "") {
+        var boton = document.getElementById("aviso");
+        boton.removeAttribute("hidden");
+    }
+}
+
+function orden() {
+    var ul = document.getElementById("listaCanciones");
+    var listado = ul.querySelectorAll("li");
+    var array = new Array();
+    for (var i = 0; i < listado.length; i++) {
+        array[i] = listado[i].textContent;
+    }
+    borrarUl();
+    array.sort();
+    for (var i = 0; i < array.length; i++) {
+        var nuevoli = document.createElement("li");
+        nuevoli.textContent = array[i];
+        ul.appendChild(nuevoli);
+    }
+}
+
+function borrado() {
+    //pedir confirmacion
+    if (confirm("¿Borrar Listado?")) {
+        //borrar registros de la base de datos
+        var open = indexedDB.open("bd", 1);
+        open.onsuccess = function (event) {
+            thisDB = event.target.result;
+            var transaction = thisDB.transaction(["lista"], "readwrite");
+            var store = transaction.objectStore("lista");
+
+            /*var request = store.delete("12");
+        	request.onerror = function(e) {
+        	}
+        	request.onsuccess = function(e) {
+        	}*/
+            store.openCursor().onsuccess = function (event) {
+                var cursor = event.target.result;
+                if (cursor) {
+                    var request = store.delete(cursor.value.name);
+                    request.onerror = function (e) {
+                        //console.log("se ha borrado con exito");
+                    }
+                    request.onsuccess = function (e) {
+                        //console.log("no se ha borrado con exito");
+                    }
+                    cursor.continue();
+                }
+            };
+
+        }
+        //Borrar lista
+        borrarUl();
+    }
+}
+
+function borrarUl() {
+    var ul = document.getElementById("listaCanciones");
+    var listado = ul.querySelectorAll("li");
+    for (var i = listado.length - 1; i >= 0; i--) {
+        listado[i].parentNode.removeChild(listado[i]); //Borramos el elemento del DOM
+        if (typeof document.outerHTML !== "undefined") {
+            listado[i].outerHTML = ""; //Borramos la memoria asociada al elemento
+        }
+    }
+}
+
+
+function inicioBD() {
+    window.indexedDB = window.indexedDB || window.mozIndexedDB || window.webkitIndexedDB || window.msIndexedDB;
+    window.IDBTransaction = window.IDBTransaction || window.webkitIDBTransaction || window.msIDBTransaction;
+    window.IDBKeyRange = window.IDBKeyRange || window.webkitIDBKeyRange || window.msIDBKeyRange;
+    if (!window.indexedDB) {
+        window.alert("Your browser doesn't support a stable version of IndexedDB.");
+    }
+    var openRequest = indexedDB.open("bd", 1);
+    openRequest.onupgradeneeded = function (e) { // cuando es necesario crear las tablas de la base de datos
+        console.log("ver");
+        thisDB = e.target.result;
+        console.log(thisDB);
+        if (!thisDB.objectStoreNames.contains("lista")) {
+            var os = thisDB.createObjectStore("lista", {
+                keyPath: "name"
+            }); // crear tabla
+        }
+    }
+    openRequest.onsuccess = function (e) {
+        // console.log("se ha creado con exito");
+    }
+    openRequest.onerror = function (e) {
+        // console.log("ha ocurrido algún error");
+    }
+}
+
+function addBD(nombre) {
+    var open = indexedDB.open("bd", 1);
+    open.onsuccess = function (event) {
+        thisDB = event.target.result;
+        var transaction = thisDB.transaction(["lista"], "readwrite");
+        var store = transaction.objectStore("lista");
+
+        var cancion = {
+            name: nombre
+        };
+        //console.log(cancion);
+
+        var request = store.add(cancion);
+        request.onerror = function (e) {
+            // console.log("se ha guardado con exito");
+        }
+        request.onsuccess = function (e) {
+            //  console.log("no se ha guardado con exito");
+        }
+    }
+}
+
+function leerBD() {
+    var open = indexedDB.open("bd", 1);
+    open.onsuccess = function (event) {
+        thisDB = event.target.result;
+        var transaction = thisDB.transaction(["lista"], "readonly");
+        var store = transaction.objectStore("lista");
+        /*var request = store.get("12");
+        request.onsuccess = function (event) {
+            //console.log(request);
+            //document.querySelector("#ver").textContent = request.result.name+" ";
+            console.log("se ha leido con exito");
+        }
+        request.onerror = function (event) {
+            console.log(event);
+            console.log("No se ha leido con exito");
+        }*/
+        store.openCursor().onsuccess = function (event) {
+            var cursor = event.target.result;
+            var ul = document.getElementById("listaCanciones");
+            if (cursor) {
+                var nuevoli = document.createElement("li");
+                nuevoli.textContent = cursor.value.name;
+                ul.appendChild(nuevoli);
+                cursor.continue();
+            }
+        }
+    }
+}
+
+  //]]></script>
+</body>
+</html>
